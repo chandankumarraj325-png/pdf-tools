@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Advanced PDF Tools</title>
+
+<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+<style>
+body { font-family: Arial; margin:0; background:#f5f5f5; }
+header { background:white; padding:15px; display:flex; justify-content:space-between; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+h1 { color:#E5322D; }
+nav a { margin:0 10px; text-decoration:none; color:black; }
+
+.hero { text-align:center; padding:40px; background:white; }
+.btn { background:#E5322D; color:white; padding:10px 20px; border:none; cursor:pointer; margin:5px; }
+
+.tools { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px; padding:20px; }
+.tool { background:white; padding:20px; text-align:center; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+
+.upload-box { border:2px dashed #aaa; padding:30px; text-align:center; margin:20px; background:white; }
+.upload-box.dragover { background:#ffeaea; }
+
+#preview { margin:20px; text-align:center; }
+
+.loader { display:none; text-align:center; }
+
+footer { background:#222; color:white; text-align:center; padding:15px; }
+</style>
+</head>
+<body>
+
+<header>
+<h1>PDF Tools Pro</h1>
+<nav>
+<a href="#">Home</a>
+<a href="#tools">Tools</a>
+</nav>
+</header>
+
+<section class="hero">
+<h2>All PDF Tools in One Website</h2>
+<button class="btn" onclick="scrollToTools()">Start</button>
+</section>
+
+<section id="tools" class="tools">
+<div class="tool">
+<h3>Merge PDF</h3>
+<button class="btn" onclick="openTool('merge')">Open</button>
+</div>
+<div class="tool">
+<h3>Split PDF</h3>
+<button class="btn" onclick="openTool('split')">Open</button>
+</div>
+<div class="tool">
+<h3>Compress PDF</h3>
+<button class="btn" onclick="openTool('compress')">Open</button>
+</div>
+</section>
+
+<section id="toolPage" style="display:none;">
+<h2 id="toolTitle" style="text-align:center"></h2>
+
+<div class="upload-box" id="dropArea">
+<p>Drag & Drop PDF OR Click</p>
+<input type="file" id="fileInput" multiple accept="application/pdf">
+</div>
+
+<div id="preview"></div>
+
+<div style="text-align:center;">
+<button class="btn" onclick="processPDF()">Process</button>
+</div>
+
+<div class="loader" id="loader">Processing... ⏳</div>
+<p id="result" style="text-align:center"></p>
+</section>
+
+<footer>
+<p>© 2026 PDF Tools Pro</p>
+</footer>
+
+<script>
+let currentTool = '';
+
+function scrollToTools(){
+ document.getElementById('tools').scrollIntoView({behavior:'smooth'});
+}
+
+function openTool(tool){
+ currentTool = tool;
+ document.getElementById('toolPage').style.display='block';
+ document.getElementById('toolTitle').innerText = tool.toUpperCase() + " PDF";
+}
+
+// Drag Drop
+let dropArea = document.getElementById('dropArea');
+dropArea.addEventListener('dragover', e=>{
+ e.preventDefault();
+ dropArea.classList.add('dragover');
+});
+dropArea.addEventListener('dragleave', ()=>{
+ dropArea.classList.remove('dragover');
+});
+dropArea.addEventListener('drop', e=>{
+ e.preventDefault();
+ dropArea.classList.remove('dragover');
+ document.getElementById('fileInput').files = e.dataTransfer.files;
+ previewFiles();
+});
+
+document.getElementById('fileInput').addEventListener('change', previewFiles);
+
+function previewFiles(){
+ let files = document.getElementById('fileInput').files;
+ let preview = document.getElementById('preview');
+ preview.innerHTML='';
+ for(let f of files){
+   preview.innerHTML += `<p>${f.name}</p>`;
+ }
+}
+
+async function processPDF(){
+ const { PDFDocument } = PDFLib;
+ let files = document.getElementById('fileInput').files;
+ if(files.length==0){ alert('Upload file'); return; }
+
+ document.getElementById('loader').style.display='block';
+
+ if(currentTool==='merge'){
+   let merged = await PDFDocument.create();
+   for(let file of files){
+     let pdf = await PDFDocument.load(await file.arrayBuffer());
+     let pages = await merged.copyPages(pdf, pdf.getPageIndices());
+     pages.forEach(p=>merged.addPage(p));
+   }
+   download(await merged.save(), 'merged.pdf');
+ }
+
+ else if(currentTool==='split'){
+   let pdf = await PDFDocument.load(await files[0].arrayBuffer());
+   let pages = pdf.getPages();
+   for(let i=0;i<pages.length;i++){
+     let newPdf = await PDFDocument.create();
+     let [p] = await newPdf.copyPages(pdf,[i]);
+     newPdf.addPage(p);
+     download(await newPdf.save(), `page_${i+1}.pdf`);
+   }
+ }
+
+ else if(currentTool==='compress'){
+   // simple compress (re-save)
+   let pdf = await PDFDocument.load(await files[0].arrayBuffer());
+   download(await pdf.save({ useObjectStreams:true }), 'compressed.pdf');
+ }
+
+ document.getElementById('loader').style.display='none';
+ document.getElementById('result').innerText='Done ✅';
+}
+
+function download(bytes, filename){
+ let blob = new Blob([bytes], {type:'application/pdf'});
+ let url = URL.createObjectURL(blob);
+ let a = document.createElement('a');
+ a.href = url;
+ a.download = filename;
+ a.click();
+}
+</script>
+
+</body>
+</html>
